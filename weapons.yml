@@ -1,0 +1,102 @@
+# Weapons
+# All color code are '§' symbol, rather than '§'.
+# You should copy this to other arenas
+
+_default: knife                         # Default Weapon at the beginning of the game
+knife:
+  Type: Melee                           # Melee Weapon
+  Skins:
+    Default:
+      Name: "§eExample Weapon"
+      Material: IRON_SWORD
+      Model: 1
+    Rainbow_Knife:
+      Name: "§dRa§cin§ebo§6w §aKn§2if§9e"
+      Material: IRON_SWORD
+      Model: 2
+    Dep_To_Ong:
+      Name: "§eDép Tổ Ong"
+      Material: IRON_SWORD
+      Model: 3
+    Red_Blazor:
+      Name: "§cRed §4Blazor"
+      Material: IRON_SWORD
+      Model: 4
+  Damage: 5.0
+  Movement Speed: 0.0
+pistol:
+  Type: Projectie                       # Gun type
+  Skins:
+    Default:
+      Name: "§7Pistol"
+      Material: DIAMOND_HOE
+      Model: 1
+      Aim: 2
+  Damage: 3.0
+  Movement Speed: 0.1
+  Recoil: 0.1                           # Every time you shoot something, you'll gain recoil
+  Magazine Type: Pistol_Magazine
+  Aimable: true
+  Firing Speed: 8                      # Every 10 ticks. 0 for instant
+  Firing Amount: 1                      # 1 bullet at a time
+  Accuracy: 0.9                         # 90%
+  Auto: false
+runninggun:
+  Type: Projectie                       # Gun type
+  Skins:
+    Default:
+      Name: "§7Running Gun"
+      Material: DIAMOND_HOE
+      Model: 1
+      Aim: 2
+  Damage: 1.0
+  Movement Speed: 0.0
+  Recoil: 0.01
+  Magazine Type: Multi_Purpose_Magazine
+  Aimable: true
+  Firing Speed: 8
+  Firing Amount: 1
+  Accuracy: 0.5
+  Auto: true
+shotgun:
+  Type: Projectie
+  Skins:
+    Default:
+      Name: "§7Shotgun"
+      Material: DIAMOND_HOE
+      Model: 3
+      Aim: 3
+  Damage: 15.0
+  Movement Speed: 0.3
+  Recoil: 0.7
+  Magazine Type: Shotgun_Bullets
+  Aimable: true
+  Firing Speed: 15
+  Firing Amount: 5
+  Accuracy: 0.85
+  Auto: false
+
+Pistol_Magazine:
+  Type: Magazine
+  Skins:
+    Default:
+      Name: "§7Pistol Magazine"
+      Material: GOLD_NUGGET
+      Model: 0
+  Bullets: 12                           # 12 bullets in 1 magazine
+Multi_Purpose_Magazine:
+  Type: Magazine
+  Skins:
+    Default:
+      Name: "§7Multiple Purpose Magazine"
+      Material: GOLD_NUGGET
+      Model: 0
+  Bullets: 30
+Shotgun_Bullets:
+  Type: Magazine
+  Skins:
+    Default:
+      Name: "§7Shotgun Bullets"
+      Material: GOLD_NUGGET
+      Model: 0
+  Bullets: 2
