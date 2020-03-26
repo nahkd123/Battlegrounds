@@ -12,6 +12,7 @@ public class BulletData {
 
 	public static final double SPEED = 1D;
 	public static final double DAMAGE_R = 0.3D;
+	public static final double DAMAGE_HEADSHOT_MUL = 1.4D; // +40% damage
 	public static final int LENGTH_PER_TICK = 25;
 	public static final int MAX_LENGTH = 250;
 	
@@ -43,6 +44,8 @@ public class BulletData {
 				for (Entity e : origin.getWorld().getNearbyEntities(origin, DAMAGE_R, DAMAGE_R, DAMAGE_R)) {
 					if (e instanceof LivingEntity && e != owner) {
 						LivingEntity le = (LivingEntity) e;
+						// Headshot thing
+						if (origin.distanceSquared(le.getEyeLocation()) < origin.distanceSquared(le.getLocation())) damage = damage * DAMAGE_HEADSHOT_MUL;
 						le.damage(damage, owner);
 						livingtime = MAX_LENGTH;
 						return;

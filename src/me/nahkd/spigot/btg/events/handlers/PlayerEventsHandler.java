@@ -12,6 +12,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
+import org.bukkit.block.Chest;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
@@ -28,6 +29,7 @@ import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerLoginEvent.Result;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
@@ -59,6 +61,9 @@ public class PlayerEventsHandler implements Listener {
 					event.setDamage(plugin.weapons.get(id).damage);
 				}
 			}
+			
+			final int rankingReward = (int) Math.round(event.getDamage() * 10);
+			plugin.rankingRewards.put(p.getUniqueId(), plugin.rankingRewards.getOrDefault(p.getUniqueId(), 0) + rankingReward);
 		}
 	}
 	
@@ -74,21 +79,28 @@ public class PlayerEventsHandler implements Listener {
 				if (player.getHealth() <= event.getDamage()) {
 					event.setCancelled(true);
 					for (ItemStack item : player.getInventory().getContents()) if (item != null && item.getType() != Material.AIR) player.getWorld().dropItem(player.getLocation(), item);
+					player.getInventory().clear();
 					player.setGameMode(GameMode.SPECTATOR);
 					player.sendMessage("§3>> §cYou died. Better luck next time!");
+					// Add ranking points
+					if (plugin.database != null) plugin.database.addRankingPoints(player.getUniqueId(), plugin.rankingRewards.get(player.getUniqueId()));
 					plugin.arenaTemp.alives.remove(player);
 					if (plugin.arenaTemp.currentStatus != ArenaTempData.STATUS_END) {
 						if (plugin.arenaTemp.alives.size() == 1) {
+							Player winner = plugin.arenaTemp.alives.iterator().next();
+							final int rew = plugin.rankingRewards.getOrDefault(winner.getUniqueId(), 0) + 250;
+							plugin.rankingRewards.put(winner.getUniqueId(), rew);
+							if (plugin.database != null) plugin.database.addRankingPoints(winner.getUniqueId(), rew);
 							Bukkit.broadcastMessage("§3");
-							Bukkit.broadcastMessage("§3   §b" + plugin.arenaTemp.alives.iterator().next().getName() + " §3is the winner!!!");
-							Bukkit.broadcastMessage("§3   §7Ranking: Ranking coming soon!");
+							Bukkit.broadcastMessage("§3   §b" + winner.getName() + " §3is the winner!!!");
+							Bukkit.broadcastMessage("§3   §7Ranking: +" + plugin.rankingRewards.get(player.getUniqueId()) + " ranking points");
 							Bukkit.broadcastMessage("§3");
 							plugin.arenaTemp.currentStatus = ArenaTempData.STATUS_END;
 							scheduleRestart();
 						} else if (plugin.arenaTemp.alives.size() <= 0) {
 							Bukkit.broadcastMessage("§3");
 							Bukkit.broadcastMessage("§3   §bOOF §3No ones win :<");
-							Bukkit.broadcastMessage("§3   §7Ranking: Ranking coming soon!");
+							Bukkit.broadcastMessage("§3   §7Ranking: +" + plugin.rankingRewards.get(player.getUniqueId()) + " ranking points");
 							Bukkit.broadcastMessage("§3");
 							plugin.arenaTemp.currentStatus = ArenaTempData.STATUS_END;
 							scheduleRestart();
@@ -99,6 +111,7 @@ public class PlayerEventsHandler implements Listener {
 		}
 	}
 	
+	// Should we call this scheduleReset() ???
 	public void scheduleRestart() {
 		Bukkit.getScheduler().scheduleSyncDelayedTask(plugin, new Runnable() {
 			@Override
@@ -111,7 +124,7 @@ public class PlayerEventsHandler implements Listener {
 				
 				plugin.arenaTemp.timer = ArenaTempData.TIMER_STARTGAMEWAIT;
 				plugin.arenaTemp.borderCenter = plugin.arena.center.clone();
-				plugin.arenaTemp.openedCrates = new HashSet<Location>();
+				plugin.arenaTemp.openedCrates = new HashSet<String>();
 				plugin.arenaTemp.alives = new HashSet<Player>();
 				for (Entity e : plugin.arena.evolvedWorld.getEntities()) if (e instanceof Item) e.remove();
 				
@@ -163,8 +176,8 @@ public class PlayerEventsHandler implements Listener {
 						return;
 					}
 					// Gun: Has bullets
-					final String itemName = event.getItem().getItemMeta().getDisplayName();
-					int bullets = Weapon.getBullets(itemName);
+					// final String itemName = event.getItem().getItemMeta().getDisplayName();
+					int bullets = Weapon.getBullets(event.getItem());
 					Weapon weapon = plugin.weapons.get(id);
 					if (!plugin.refireTime.containsKey(event.getPlayer().getUniqueId())) {
 						plugin.refireTime.put(event.getPlayer().getUniqueId(), new HashMap<String, Integer>());
@@ -181,23 +194,33 @@ public class PlayerEventsHandler implements Listener {
 						}
 						event.setCancelled(true);
 					}
+					return;
 				}
-			} else if (plugin.arenaTemp != null && event.getClickedBlock() != null && plugin.arena.supplyCrates.containsKey(event.getClickedBlock().getLocation()) && !plugin.arenaTemp.openedCrates.contains(event.getClickedBlock().getLocation())) {
+			}
+			if (plugin.arenaTemp != null && event.getClickedBlock() != null && plugin.arena.supplyCrates.containsKey(event.getClickedBlock().getLocation()) && !plugin.arenaTemp.openedCrates.contains(Battlegrounds.toString_rounded(event.getClickedBlock().getLocation()))) {
 				// Random item
-				ArrayList<String> keys = new ArrayList<String>(plugin.weapons.keySet());
-				int randomIndex = (int) Math.round(Math.random() * (keys.size() - 1));
+				Chest chest = (Chest) event.getClickedBlock().getState();
+				chest.update(true);
+				Inventory inv = chest.getBlockInventory();
 				
-				Weapon wp = plugin.weapons.get(keys.get(randomIndex));
-				if (wp.type == WeaponType.Magazine) {
-					ItemStack eeeeeee = new ItemStack(wp.createItem(plugin.getSelectedSkin(event.getPlayer(), wp.id), plugin, false));
-					eeeeeee.setAmount((int) Math.round(Math.random() * 12));
-					event.getPlayer().getInventory().addItem(eeeeeee);
+				for (int i = 0; i < inv.getSize(); i++) {
+					ArrayList<String> keys = new ArrayList<String>(plugin.weapons.keySet());
+					int randomIndex = (int) Math.round(Math.random() * (keys.size() - 1));
+					
+					Weapon wp = plugin.weapons.get(keys.get(randomIndex));
+					if (wp.type == WeaponType.Magazine) {
+						ItemStack eeeeeee = new ItemStack(wp.createItem(plugin.getSelectedSkin(event.getPlayer(), wp.id), plugin, false));
+						eeeeeee.setAmount((int) Math.round(Math.random() * 8));
+						// event.getPlayer().getInventory().addItem(eeeeeee);
+						inv.setItem(i, Math.random() > 0.75? eeeeeee : null);
+					} else inv.setItem(i, Math.random() > 0.5? wp.createItem(plugin.getSelectedSkin(event.getPlayer(), wp.id), plugin, false) : null);
 				}
-				event.getPlayer().getInventory().addItem(wp.createItem(plugin.getSelectedSkin(event.getPlayer(), wp.id), plugin, false));
 				
-				plugin.arenaTemp.openedCrates.add(event.getClickedBlock().getLocation());
+				// event.getPlayer().getInventory().addItem(wp.createItem(plugin.getSelectedSkin(event.getPlayer(), wp.id), plugin, false));
+				
+				plugin.arenaTemp.openedCrates.add(Battlegrounds.toString_rounded(event.getClickedBlock().getLocation()));
 				event.getClickedBlock().getWorld().spawnParticle(Particle.CLOUD, event.getClickedBlock().getLocation(), 0);
-				event.getClickedBlock().setType(Material.AIR);
+				// event.getClickedBlock().setType(Material.AIR);
 			}
 		}
 	}

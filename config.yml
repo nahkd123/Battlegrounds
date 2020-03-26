@@ -1,1 +1,42 @@
 # Configuration File
+
+# Database configuration
+# Allow you to have weapon skins and stuffs
+Database:
+  Database Type: None                 # None; MySQL (case insensitive)
+  MySQL:
+    Host: localhost
+    Port: 3306
+    Username: root
+    Password: root
+    Database: battlegrounds
+    SSL: false                        # Turn on SSL if your database is on separate machine.
+                                      # For localhost, you don't really need this, as no
+                                      # ones can connect to localhost server.
+
+# Configure your database (MySQL)
+# First, you'll need to create some tables:
+# - info             For ranking purpose
+#   + uuid           UUID of the player
+#     VARCHAR 36
+#   + rankingPoints  The player's ranking point
+#     INT
+# - weaponskins      Getting weapon skins
+#   + uuid
+#     VARCHAR 36
+#   + <weapon ID>    Selected weapon skin
+#     VARCHAR 32
+#
+# Example for weaponskins:
+# mysql> SELECT * FROM weaponskins;
+# +--------------------------------------+---------------+--------------+
+# | uuid                                 | knife         | desert_eagle |
+# +--------------------------------------+---------------+--------------+
+# | ########## Your UUID Here ########## | Rainbow_Knife | Golden       |
+# +--------------------------------------+---------------+--------------+
+# 1 row in set (0.00 sec)
+#
+# If the weapon ID column does not exists, it will uses default value (in this case, "Default")
+
+Other:
+  Reduced Debug Messages: false       # Change this to true will not print any of debug messages

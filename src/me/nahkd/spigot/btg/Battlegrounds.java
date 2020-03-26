@@ -3,6 +3,7 @@ package me.nahkd.spigot.btg;
 import java.io.File;
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 //import java.io.FileOutputStream;
 //import java.io.IOException;
@@ -18,6 +19,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -28,13 +30,17 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
 import me.nahkd.spigot.btg.commands.AdminCommand;
+import me.nahkd.spigot.btg.commands.PluginInformationCommand;
 import me.nahkd.spigot.btg.events.handlers.EditorsEventsHandler;
 import me.nahkd.spigot.btg.events.handlers.PlayerEventsHandler;
-import me.nahkd.spigot.btg.net.LobbyConnection;
+import me.nahkd.spigot.btg.net.MySQLDatabase;
 import me.nahkd.spigot.btg.pub.Arena;
 import me.nahkd.spigot.btg.pub.ArenaTempData;
 import me.nahkd.spigot.btg.pub.BulletData;
 import me.nahkd.spigot.btg.pub.Weapon;
+import me.nahkd.spigot.btg.pub.WeaponType;
+import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.TextComponent;
 
 public class Battlegrounds extends JavaPlugin {
 	
@@ -66,6 +72,7 @@ public class Battlegrounds extends JavaPlugin {
 	public HashMap<UUID, HashMap<String, Integer>> refireTime;
 	public HashMap<UUID, Boolean> aimingState;
 	public HashMap<UUID, Boolean> autoHold;
+	public HashMap<UUID, Integer> rankingRewards;
 	
 	ArrayList<BulletData> bullets;
 	public Arena arena;
@@ -74,27 +81,31 @@ public class Battlegrounds extends JavaPlugin {
 	// Editing
 	public HashSet<UUID> editors;
 	
-	// Lobby
-	LobbyConnection lobby;
+	// MySQL
+	public MySQLDatabase database;
+	
+	// Namespaced keys
+	public static NamespacedKey WEAPON_ID;
+	public static NamespacedKey WEAPON_DMG_OR_HLT;
+	public static NamespacedKey WEAPON_MOVEMENT_SPEED;
+	/** Weapon/Magazine bullets count. For weapon, this is current bullets. For magazine, this
+	 * is magazine bullets count. */
+	public static NamespacedKey WEAPON_BULLETS;
+	public static NamespacedKey WEAPON_MAGAZINE_ID;
 	
 	@Override
 	public void onEnable() {
+		WEAPON_ID = new NamespacedKey(this, "weapon_id");
+		WEAPON_DMG_OR_HLT = new NamespacedKey(this, "weapon_health_value");
+		WEAPON_MOVEMENT_SPEED = new NamespacedKey(this, "weapon_movement_speed");
+		WEAPON_BULLETS = new NamespacedKey(this, "weapon_bullets");
+		WEAPON_MAGAZINE_ID = new NamespacedKey(this, "weapon_magazine");
+		
 		selectedSkins = new HashMap<UUID, HashMap<String,String>>();
 		aimingState = new HashMap<UUID, Boolean>();
 		autoHold = new HashMap<UUID, Boolean>();
 		bullets = new ArrayList<BulletData>();
-		if (getServer().getPluginManager().getPlugin("ErotoLib") != null) {
-			try {
-				getServer().getConsoleSender().sendMessage("§fErotoLib found, creating connection to lobby server...");
-				lobby = new LobbyConnection(36969, this);
-				lobby.connection.sendString("connected\u0000clientnamehere");
-			} catch (UnknownHostException e) {
-				e.printStackTrace();
-				System.out.println("It's kinda weird, because localhost isn't real. Please check your /etc/hosts.");
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
+		rankingRewards = new HashMap<UUID, Integer>();
 		
 		if (!getDataFolder().exists()) getDataFolder().mkdir();
 		playerData = new File(getDataFolder(), "playersdata");
@@ -103,6 +114,23 @@ public class Battlegrounds extends JavaPlugin {
 		configFile = new File(getDataFolder(), "config.yml");
 		if (!configFile.exists()) saveResource("config.yml", false);
 		config = YamlConfiguration.loadConfiguration(configFile);
+		
+		// TODO Create a MySQL connection
+		if (config.getString("Database.Database Type", "None").equalsIgnoreCase("mysql")) {
+			MySQLDatabase database = new MySQLDatabase(
+					config.getString("Database.MySQL.Host", "localhost"),
+					config.getInt("Database.MySQL.Port", 3306),
+					config.getString("Database.MySQL.Database", "battlegrounds"),
+					config.getString("Database.MySQL.Username", "root"),
+					config.getString("Database.MySQL.Password", "root")
+					);
+			try {
+				database.openConnection();
+				this.database = database;
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
 		
 		arenaFile = new File(getDataFolder(), "arena.yml");
 		arena = new Arena();
@@ -135,6 +163,8 @@ public class Battlegrounds extends JavaPlugin {
 			AdminCommand adminCommand = new AdminCommand(this);
 			getCommand("bgadmin").setExecutor(adminCommand);
 			getCommand("bgadmin").setTabCompleter(adminCommand);
+			
+			getCommand("bg").setExecutor(new PluginInformationCommand());
 		}
 		
 		// Scheduled repeating tasks
@@ -162,7 +192,7 @@ public class Battlegrounds extends JavaPlugin {
 					if (arenaTemp.timer <= 5 && arenaTemp.timer >= 1) Bukkit.broadcastMessage("§3>> §bGame will be starts in " + arenaTemp.timer + " seconds!");
 					else if (arenaTemp.timer == 0) {
 						Random rand = new Random();
-						final Weapon defaultWeapon = weapons.get(weaponsConfig.getString("_default", "example"));
+						// final Weapon defaultWeapon = weapons.get(weaponsConfig.getString("_default", "example"));
 						for (Player p : getServer().getOnlinePlayers()) {
 							p.setFoodLevel(20);
 							p.setHealth(20);
@@ -178,10 +208,12 @@ public class Battlegrounds extends JavaPlugin {
 							p.setWalkSpeed(0.2F);
 							aimingState.put(p.getUniqueId(), false);
 							
-							// Each players will get default melee weapon
-							p.getInventory().addItem(defaultWeapon.createItem(getSelectedSkin(p, defaultWeapon.id), plugin, false));
+							//// Each players will get default melee weapon
+							// p.getInventory().addItem(defaultWeapon.createItem(getSelectedSkin(p, defaultWeapon.id), plugin, false));
+							// How about not giving player default weapon?
 							
 							arenaTemp.alives.add(p);
+							rankingRewards.put(p.getUniqueId(), 0);
 						}
 						Bukkit.broadcastMessage("§3>> §bGame started!");
 						arenaTemp.currentStatus = ArenaTempData.STATUS_BORDERWAIT;
@@ -205,21 +237,29 @@ public class Battlegrounds extends JavaPlugin {
 					}
 				}
 				if (getServer().getOnlinePlayers().size() > 0) for (Player p : getServer().getOnlinePlayers()) {
+					ItemStack item = p.getInventory().getItemInMainHand();
 					if (autoHold.getOrDefault(p.getUniqueId(), false)) {
 						// Fire next bullet
-						ItemStack item = p.getInventory().getItemInMainHand();
 						if (item == null || item.getType() == Material.AIR) {
 							// Item is null???
 							autoHold.put(p.getUniqueId(), false);
 						} else {
 							Weapon weapon = weapons.get(Weapon.getID(item));
-							int bullets = Weapon.getBullets(item.getItemMeta().getDisplayName());
+							int bullets = Weapon.getBullets(item);
 							if (bullets > 0) fire(bullets, weapon, p, item);
 							else {
 								autoHold.put(p.getUniqueId(), false);
 							}
 						}
 					}
+					
+					// Action bar
+					if (Weapon.isWeapon(item)) {
+						Weapon weapon = Weapon.getWeaponObject(item, plugin);
+						if (weapon.type == WeaponType.Projectie) p.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText("" + Weapon.getBullets(item) + "/" + plugin.weapons.get(weapon.magazine).bullets));
+						else if (weapon.type == WeaponType.Magazine) p.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText("" + Weapon.getBullets(item)));
+						else if (weapon.type == WeaponType.Melee) p.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText("§7Melee Weapon"));
+					} else p.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText("§7Hand"));
 				}
 			}
 		}, 0, 1);
@@ -269,7 +309,15 @@ public class Battlegrounds extends JavaPlugin {
 	
 	@Override
 	public void onDisable() {
-		if (lobby != null) lobby.shutdown();
+		// TODO Disconnect from MySQL Server
+		if (database != null) {
+			try {
+				database.connection.close();
+				System.out.println("Closed connection to MySQL server");
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
 	}
 	
 	public void createBullet(Location origin, Vector direction, double damage, Player owner) {
@@ -284,11 +332,16 @@ public class Battlegrounds extends JavaPlugin {
 		if (!selectedSkins.containsKey(player.getUniqueId())) {
 			HashMap<String, String> weaponSkins = new HashMap<String, String>();
 			selectedSkins.put(player.getUniqueId(), weaponSkins);
-			// if (getServer().getPluginManager().isPluginEnabled("ErotoLib")) {
-			if (lobby != null) {
-				// Load skin from lobby server
-				for (String weaponId : weapons.keySet()) lobby.skinRequest(weaponId, player.getUniqueId());
+			
+			// Load skin from database
+			if (database != null) {
+				database.getSkinFor(player.getUniqueId(), weaponSkins);
+				for (String wname : database.availableWeapons) System.out.println(player.getUniqueId() + ": Skin for weapon " + wname + " is " + weaponSkins.get(wname));
 			}
 		}
+	}
+	
+	public static String toString_rounded(Location location) {
+		return location.getWorld().getName() + ":" + location.getBlockX() + ":" + location.getBlockY() + ":" + location.getBlockZ();
 	}
 }

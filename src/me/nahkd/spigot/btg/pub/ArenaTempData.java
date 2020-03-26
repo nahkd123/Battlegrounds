@@ -4,6 +4,7 @@ import java.util.HashSet;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.Chest;
 import org.bukkit.entity.Player;
 
 public class ArenaTempData {
@@ -22,7 +23,7 @@ public class ArenaTempData {
 	public int timer;
 	public Location borderCenter;
 	
-	public HashSet<Location> openedCrates;
+	public HashSet<String> openedCrates;
 	public HashSet<Player> alives;
 	
 	public ArenaTempData(Arena arena) {
@@ -31,19 +32,25 @@ public class ArenaTempData {
 		timer = 0;
 		borderCenter = arena.center.clone();
 		
-		openedCrates = new HashSet<Location>();
+		openedCrates = new HashSet<String>();
 		alives = new HashSet<Player>();
 	}
 	
 	public void resetCrates() {
 		for (Location l : arena.supplyCrates.keySet()) {
-			l.getBlock().setType(arena.supplyCrates.get(l));
+			// l.getBlock().setType(arena.supplyCrates.get(l));
+			l.getBlock().setType(Material.CHEST);
 		}
-		openedCrates = new HashSet<Location>();
+		openedCrates = new HashSet<String>();
 	}
 	
 	public void emptyCrates() {
 		for (Location l : arena.supplyCrates.keySet()) {
+			if (l.getBlock().getType() == Material.CHEST) {
+				Chest chest = (Chest) l.getBlock().getState();
+				chest.update(true);
+				chest.getBlockInventory().clear();
+			}
 			l.getBlock().setType(Material.AIR);
 		}
 	}

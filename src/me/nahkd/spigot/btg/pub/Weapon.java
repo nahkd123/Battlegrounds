@@ -12,6 +12,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 
 import me.nahkd.spigot.btg.Battlegrounds;
 
@@ -51,7 +52,6 @@ public class Weapon {
 					config.getInt("Skins." + skinName + ".Aim", 0),
 					Material.valueOf(config.getString("Skins." + skinName + ".Material", "STONE"))));
 		}
-		
 		if (type == WeaponType.Projectie) {
 			recoil = config.getDouble("Recoil", 0.2D);
 			magazine = config.getString("Magazine Type", "unknown");
@@ -74,20 +74,24 @@ public class Weapon {
 		WeaponSkin sss = skins.get(skin);
 		ItemStack out = new ItemStack(sss.displayMaterial);
 		ItemMeta meta = out.getItemMeta();
+		
 		meta.setLocalizedName(sss.displayName);
-		if (type == WeaponType.Projectie) meta.setDisplayName(sss.displayName + " §8[§7" + plugin.weapons.get(magazine).bullets + "§8/" + plugin.weapons.get(magazine).bullets + "]");	
-		else meta.setDisplayName(sss.displayName);
+		meta.setDisplayName(sss.displayName);
 		
 		meta.setLore(Arrays.asList(
-				"§8" + type.toString() + " Weapon",
-				"§7Damage: §c" + damage,
-				"§7Movement Speed: §b-" + movementSpeed,
-				(type == WeaponType.Projectie)? "§8Magazine: " + magazine : "",
-				"§7§7§7§8" + id
+				"§8" + type.toString() + " Weapon"
 				));
 		if (sss.skinModel != 0) meta.setCustomModelData(aiming? sss.skinAim : sss.skinModel);
-		meta.addAttributeModifier(Attribute.GENERIC_ATTACK_SPEED, new AttributeModifier(globalUUID, "bgweapon", 13376969.0, Operation.ADD_NUMBER));
+		meta.addAttributeModifier(Attribute.GENERIC_ATTACK_SPEED, new AttributeModifier(globalUUID, "bgweapon", 13376969.0, Operation.MULTIPLY_SCALAR_1));
 		meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+		
+		meta.getPersistentDataContainer().set(Battlegrounds.WEAPON_ID, PersistentDataType.STRING, id);
+		meta.getPersistentDataContainer().set(Battlegrounds.WEAPON_DMG_OR_HLT, PersistentDataType.DOUBLE, damage);
+		meta.getPersistentDataContainer().set(Battlegrounds.WEAPON_MOVEMENT_SPEED, PersistentDataType.DOUBLE, movementSpeed);
+		if (type == WeaponType.Projectie || type == WeaponType.Magazine) {
+			meta.getPersistentDataContainer().set(Battlegrounds.WEAPON_BULLETS, PersistentDataType.INTEGER, type == WeaponType.Projectie? plugin.weapons.get(magazine).bullets : bullets);
+		}
+		
 		out.setItemMeta(meta);
 		return out;
 	}
@@ -95,21 +99,25 @@ public class Weapon {
 	public static boolean isWeapon(ItemStack item) {
 		return item != null
 				&& item.hasItemMeta()
-				&& item.getItemMeta().hasLore()
-				&& item.getItemMeta().getLore().size() >= 5
-				&& item.getItemMeta().getLore().get(4).startsWith("§7§7§7§8");
+				&& item.getItemMeta().getPersistentDataContainer().has(Battlegrounds.WEAPON_ID, PersistentDataType.STRING);
+	}
+	public static Weapon getWeaponObject(ItemStack item, Battlegrounds plugin) {
+		return plugin.weapons.get(item.getItemMeta().getPersistentDataContainer().get(Battlegrounds.WEAPON_ID, PersistentDataType.STRING));
 	}
 	public static String getID(ItemStack item) {
-		return item.getItemMeta().getLore().get(4).substring(8);
+		// return item.getItemMeta().getLore().get(4).substring(8);
+		return item.getItemMeta().getPersistentDataContainer().get(Battlegrounds.WEAPON_ID, PersistentDataType.STRING);
 	}
-	public static int getBullets(String displayName) {
-		return Integer.parseInt(displayName.split(" §8\\[§7")[1].split("§8/")[0]);
+	public static int getBullets(ItemStack item) {
+		return item.getItemMeta().getPersistentDataContainer().get(Battlegrounds.WEAPON_BULLETS, PersistentDataType.INTEGER);
 	}
 	public static ItemStack setBullets(ItemStack item, int bullets, Battlegrounds plugin) {
 		ItemMeta meta = item.getItemMeta();
 //		final String displayName = meta.getDisplayName();
-		final String id = meta.getLore().get(3).substring(12);
-		meta.setDisplayName(meta.getLocalizedName() + " §8[§7" + bullets + "§8/" + plugin.weapons.get(id).bullets + "]");
+		// final String id = meta.getLore().get(3).substring(12);
+		// final String id = meta.getPersistentDataContainer().get(Battlegrounds.WEAPON_ID, PersistentDataType.STRING);
+		meta.getPersistentDataContainer().set(Battlegrounds.WEAPON_BULLETS, PersistentDataType.INTEGER, bullets);
+		// meta.setDisplayName(meta.getLocalizedName() + " §8[§7" + bullets + "§8/" + plugin.weapons.get(id).bullets + "]");
 		item.setItemMeta(meta);
 		return item;
 	}

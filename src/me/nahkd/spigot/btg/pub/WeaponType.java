@@ -4,7 +4,9 @@ public enum WeaponType {
 	
 	Melee("melee"),
 	Projectie("proj"),
-	Magazine("mag");
+	Magazine("mag"),
+	Consumable("con"),
+	Throwable("throw");
 	
 	public final String nameHeader;
 	private WeaponType(String nameHeader) {

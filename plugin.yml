@@ -1,8 +1,7 @@
 name: Battlegrounds
 author: nahkd123
-version: 1.0.0-1.15.2
+version: 1.0.1-1.15.2
 main: me.nahkd.spigot.btg.Battlegrounds
-softdepend: [ErotoLib]
 api-version: 1.15
 
 commands:
@@ -10,8 +9,16 @@ commands:
     description: "Admin command. /bgadmin wizard to setup arena"
     usage: "/bgadmin [wizard|cheat <id [skinname]>|list]"
     permission: "battlegrounds.admin"
+  bg:
+    description: "View plugin information"
+    aliases: [battleground, battlegrounds, bginfo]
+    usage: "/bg"
+    permission: "battleground.info"
     
 permissions:
   battlegrounds.admin:
     description: "Administrator's permission. Already served to OPs"
     default: op
+  battleground.info:
+    description: "Allow to view plugin information"
+    default: true
